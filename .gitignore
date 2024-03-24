@@ -1,0 +1,8 @@
+.vscode
+*.exe
+.DS_store
+main.out*
+main
+build
+*.code-workspace
+
