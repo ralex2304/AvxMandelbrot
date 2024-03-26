@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-CC = g++
+CC = $(if $(COMPILER),$(COMPILER),g++)
 CFLAGS = -fdiagnostics-color=always -Wshadow -Winit-self -Wredundant-decls -Wcast-align -Wundef			 \
 		 -Wfloat-equal -Winline -Wunreachable-code -Wmissing-declarations -Wmissing-include-dirs 		 \
 		 -Wswitch-enum -Wswitch-default -Weffc++ -Wmain -Wextra -Wall -g -pipe -fexceptions -Wcast-qual	 \
@@ -14,7 +14,7 @@ CFLAGS_SANITIZER = -fsanitize=address,alignment,bool,bounds,enum,float-cast-over
 				   object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,$\
 				   undefined,unreachable,vla-bound,vptr
 
-OPTIMISATION = -O3 -march=native
+OPTIMISATION = -DNDEBUG -march=native $(OPTION_FLAGS)
 
 EXTERNAL_DIR =
 IFLAGS =
@@ -23,7 +23,7 @@ LIBRARIES = -lsfml-graphics -lsfml-window -lsfml-system
 SRC_DIR = src
 BUILD_DIR = build
 NON_CODE_DIRS = $(BUILD_DIR) .vscode .git
-TARGET = main
+TARGET = $(if $(OPTION_NAME),$(OPTION_NAME),main)
 
 CD = $(shell pwd)
 
@@ -42,7 +42,22 @@ OBJ = $(FILES:%=$(BUILD_DIR)%)
 DEPENDS = $(OBJ:%.cpp=%.d)
 OBJECTS = $(OBJ:%.cpp=%.o)
 
-all: $(TARGET)
+target: $(TARGET)
+
+all:
+	@make clean OPTION_NAME=gcc_O2
+	@make target COMPILER=g++ OPTION_FLAGS="-O2" OPTION_NAME=gcc_O2
+	@make clean OPTION_NAME=gcc_O3
+	@make target COMPILER=g++ OPTION_FLAGS="-O3" OPTION_NAME=gcc_O3
+
+	@make clean OPTION_NAME=clang_O2
+	@make target COMPILER=clang++ OPTION_FLAGS="-O2" OPTION_NAME=clang_O2
+	@make clean OPTION_NAME=clang_O3
+	@make target COMPILER=clang++ OPTION_FLAGS="-O3" OPTION_NAME=clang_O3
+
+	@make clean OPTION_NAME=gcc_O3_vol
+	@make target COMPILER=g++ OPTION_FLAGS="-O3 -DVOLATILE" OPTION_NAME=gcc_O3_vol
+	@make clean
 
 $(TARGET): $(OBJECTS)
 	@$(CC) $(OPTIMISATION) $(IFLAGS) $(CFLAGS) $(if $(sanitizer), $(CFLAGS_SANITIZER)) $^ -o $@ $(LIBRARIES)
@@ -60,5 +75,5 @@ $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR) $(MAKE_DIRS)
 
 clean:
 	@rm -rf ./$(BUILD_DIR)/*
-	@rm ./$(TARGET)
+	@rm -f ./$(TARGET)
 

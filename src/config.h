@@ -3,10 +3,6 @@
 
 #include <stdlib.h>
 
-#define NAIVE
-//#define VECTORIZED_NO_SSE
-//#define VECTORIZED_SSE
-
 const size_t MEASURE_CNT = 100;
 
 const size_t WIDTH  = 1600;

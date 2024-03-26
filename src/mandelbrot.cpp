@@ -1,30 +1,34 @@
 #include "mandelbrot.h"
 
-inline uint32_t count_color_rgba_(unsigned char n) {
+#ifdef VOLATILE
+static volatile uint32_t measure_result_global = 0;
+#endif
+
+inline uint32_t count_color_rgba_(unsigned int n) {
     n = 255 - n;
 
-    uint32_t res = 0xFF << 24; //< A channel
+    uint32_t res = 0xFFu << 24u; //< A channel
 
-    res += n << 16;
-    res += ((n % 8) * 32) << 8;
-    res += (n % 2) * 255;
+    res += n << 16u;
+    res += ((n % 8u) * 32u) << 8u;
+    res += (n % 2u) * 255u;
 
     return res;
 }
 
-inline void Mandelbrot::calculate_naive(sfmlWindow* window) {
-    assert(window);
+void Mandelbrot::calculate_naive(sfmlCanvas* canvas) {
+    assert(canvas);
 
     size_t n = 0;
 
     float y0 = y_offs * DEFAULT_SCALE - scale * HEIGHT / 2;
 
-    for (size_t iy = 0; iy < window->height(); iy++, y0 += scale) {
+    for (size_t iy = 0; iy < canvas->height(); iy++, y0 += scale) {
 
         float x0 = x_offs * DEFAULT_SCALE - scale * WIDTH / 2;
 
 
-        for (size_t jx = 0; jx < window->width(); jx++, x0 += scale) {
+        for (size_t jx = 0; jx < canvas->width(); jx++, x0 += scale) {
 
             float x = x0;
             float y = y0;
@@ -42,25 +46,28 @@ inline void Mandelbrot::calculate_naive(sfmlWindow* window) {
                 x = x2 - y2 + x0;
             }
 
-            window->set_pixel_color_raw(n, count_color_rgba_((unsigned char)(cnt - 1)));
-
+#ifdef VOLATILE
+            measure_result_global = count_color_rgba_((unsigned char)(cnt - 1));
+#else
+            canvas->set_pixel_color_raw(n, count_color_rgba_((unsigned char)(cnt - 1)));
+#endif
             n += 4;
         }
     }
 }
 
-inline void Mandelbrot::calculate_vector_no_sse(sfmlWindow* window) {
-    assert(window);
+void Mandelbrot::calculate_vector_no_avx(sfmlCanvas* canvas) {
+    assert(canvas);
 
     size_t n = 0;
 
     float y0 = y_offs * DEFAULT_SCALE - scale * HEIGHT / 2;
 
-    for (size_t iy = 0; iy < window->height(); iy++, y0 += scale) {
+    for (size_t iy = 0; iy < canvas->height(); iy++, y0 += scale) {
 
         float x0_base = x_offs * DEFAULT_SCALE - scale * WIDTH / 2;
 
-        for (size_t jx = 0; jx < window->width(); jx += 8, x0_base += 8 * scale) {
+        for (size_t jx = 0; jx < canvas->width(); jx += 8, x0_base += 8 * scale) {
 
             float x0[8] = {x0_base + 0 * scale, x0_base + 1 * scale,
                            x0_base + 2 * scale, x0_base + 3 * scale,
@@ -70,47 +77,53 @@ inline void Mandelbrot::calculate_vector_no_sse(sfmlWindow* window) {
             float x[8] = {}; for (int i = 0; i < 8; i++) x[i] = x0[i];
             float y[8] = {}; for (int i = 0; i < 8; i++) y[i] = y0;
 
-            uint32_t cnt = 0;
-            uint32_t cnts[8] = {};
+            unsigned int cnt = 0;
+            unsigned int cnts[8] = {};
 
             while (cnt++ < MAX_ITER - 1) {
                 float x2[8] = {}; for (int i = 0; i < 8; i++) x2[i] = x[i] * x[i];
                 float y2[8] = {}; for (int i = 0; i < 8; i++) y2[i] = y[i] * y[i];
 
-                bool cmp = false;
-                for (int i = 0; i < 8; i++) {
-                    if (x2[i] + y2[i] <= R2) {
-                        cnts[i] = cnt;
-                        cmp = true;
-                    }
-                }
-                if (!cmp)
+                float dist2[8] = {}; for (int i = 0; i < 8; i++) dist2[i] = x2[i] + y2[i];
+
+                unsigned int cmp[8] = {};
+                unsigned int mask = 0;
+                for (int i = 0; i < 8; i++) cmp[i] = (dist2[i] <= R2);
+                for (int i = 0; i < 8; i++) mask |= cmp[i];
+
+                if (!mask)
                     break;
 
-                for (int i = 0; i < 8; i++) {
-                    y[i] = 2 * x[i] * y[i] + y0;
-                    x[i] = x2[i] - y2[i] + x0[i];
-                }
+                for (int i = 0; i < 8; i++) cnts[i] += cmp[i];
+
+                for (int i = 0; i < 8; i++) y[i] = 2 * x[i] * y[i] + y0;
+                for (int i = 0; i < 8; i++) x[i] = x2[i] - y2[i] + x0[i];
             }
 
-            for (int i = 0; i < 8; i++)
-                window->set_pixel_color_raw(n += 4, count_color_rgba_((unsigned char)(cnts[i])));
+            for (int i = 0; i < 8; i++) {
+#ifdef VOLATILE
+                measure_result_global = count_color_rgba_((unsigned char)(cnts[i]));
+#else
+                canvas->set_pixel_color_raw(n, count_color_rgba_((unsigned char)(cnts[i])));
+#endif
+                n += 4;
+            }
         }
     }
 }
 
-inline void Mandelbrot::calculate_vector_sse(sfmlWindow* window) {
-    assert(window);
+void Mandelbrot::calculate_vector_avx(sfmlCanvas* canvas) {
+    assert(canvas);
 
     size_t n = 0;
 
     __m256 y0 = _mm256_set_ps1(y_offs * DEFAULT_SCALE - scale * HEIGHT / 2);
 
-    for (size_t iy = 0; iy < window->height(); iy++, y0 += scale) {
+    for (size_t iy = 0; iy < canvas->height(); iy++, y0 += scale) {
 
         float x0_base = x_offs * DEFAULT_SCALE - scale * WIDTH / 2;
 
-        for (size_t jx = 0; jx < window->width(); jx += 8, x0_base += 8 * scale) {
+        for (size_t jx = 0; jx < canvas->width(); jx += 8, x0_base += 8 * scale) {
 
             // x0[0:7] = x0_base + scale * {0 - 7}
             __m256 x0 = _mm256_add_ps(_mm256_set_ps1(x0_base),
@@ -145,65 +158,129 @@ inline void Mandelbrot::calculate_vector_sse(sfmlWindow* window) {
                 x = _mm256_add_ps(_mm256_sub_ps(x2, y2), x0);
             }
 
-            int* cnts_int = (int*)&cnts;
+            alignas(32) int cnts_int[8] = {};
+            _mm256_store_si256((__m256i*)&cnts_int, cnts); // REVIEW
+            //int* cnts_int = (int*)&cnts;
 
-            for (int i = 0; i < 8; i++)
-                window->set_pixel_color_raw(n += 4, count_color_rgba_((unsigned char)(cnts_int[i])));
+            for (int i = 0; i < 8; i++) {
+#ifdef VOLATILE
+                measure_result_global = count_color_rgba_((unsigned char)(cnts_int[i]));
+#else
+                canvas->set_pixel_color_raw(n, count_color_rgba_((unsigned char)(cnts_int[i])));
+#endif
+                n += 4;
+            }
         }
     }
 }
 
-Status::Statuses measure_ticks(Mandelbrot* mb, sfmlWindow* window) {
+inline unsigned long measure_ticks_naive_(Mandelbrot* mb, sfmlCanvas* canvas) {
     assert(mb);
-    assert(window);
-
-    printf("Measuring...\n");
-    fflush(stdout);
+    assert(canvas);
 
     unsigned long lo = 0;
     unsigned long hi = 0;
     asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
     unsigned long begin = lo + (hi << 32);
 
-    for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++) {
-
-#if defined NAIVE
-        mb->calculate_naive(window);
-#elif defined VECTORIZED_NO_SSE
-        mb->calculate_vector_no_sse(window);
-#elif defined VECTORIZED_SSE
-        mb->calculate_vector_sse(window);
-#endif
-    }
+    for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
+        mb->calculate_naive(canvas);
 
     asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
     unsigned long end = lo + (hi << 32);
 
-    unsigned long result = (end - begin) / MEASURE_CNT;
+    return (end - begin) / MEASURE_CNT;
+}
 
-    printf("%ld\n", result);
+inline unsigned long measure_ticks_vector_no_avx_(Mandelbrot* mb, sfmlCanvas* canvas) {
+    assert(mb);
+    assert(canvas);
+
+    unsigned long lo = 0;
+    unsigned long hi = 0;
+    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
+    unsigned long begin = lo + (hi << 32);
+
+    for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
+        mb->calculate_vector_no_avx(canvas);
+
+    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
+    unsigned long end = lo + (hi << 32);
+
+    return (end - begin) / MEASURE_CNT;
+}
+
+inline unsigned long measure_ticks_vector_avx_(Mandelbrot* mb, sfmlCanvas* canvas) {
+    assert(mb);
+    assert(canvas);
+
+    unsigned long lo = 0;
+    unsigned long hi = 0;
+    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
+    unsigned long begin = lo + (hi << 32);
+
+    for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
+        mb->calculate_vector_avx(canvas);
+
+    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
+    unsigned long end = lo + (hi << 32);
+
+    return (end - begin) / MEASURE_CNT;
+}
+
+Status::Statuses measure_ticks(Mandelbrot* mb, sfmlCanvas* canvas) {
+    assert(mb);
+    assert(canvas);
+
+    unsigned long res = 0;
+
+    switch (mb->impl) {
+        case Mandelbrot::NAIVE:
+            res = measure_ticks_naive_(mb, canvas);
+            break;
+
+        case Mandelbrot::VECTOR_NO_AVX:
+            res = measure_ticks_vector_no_avx_(mb, canvas);
+            break;
+
+        case Mandelbrot::VECTOR_AVX:
+            res = measure_ticks_vector_avx_(mb, canvas);
+            break;
+
+        case Mandelbrot::I_DEFAULT:
+        default:
+            return Status::ARGS_ERROR;
+    }
+
+    printf("%ld\n", res);
 
     return Status::NORMAL_WORK;
 }
 
-Status::Statuses process(sfmlWindow* window) {
+Status::Statuses window_process(Mandelbrot* mb, sfmlWindow* window) {
+    assert(mb);
     assert(window);
-
-    Mandelbrot mb = {};
-
-    measure_ticks(&mb, window);
-
-    /*
 
     while (window->is_open()) {
 
-#if defined NAIVE
-        mb.calculate_naive(window);
-#elif defined VECTORIZED_NO_SSE
-        mb.calculate_vector_no_sse(window);
-#elif defined VECTORIZED_SSE
-        mb.calculate_vector_sse(window);
-#endif
+        switch (mb->impl) {
+            case Mandelbrot::NAIVE:
+                mb->calculate_naive(window->canvas());
+                break;
+
+            case Mandelbrot::VECTOR_NO_AVX:
+                mb->calculate_vector_no_avx(window->canvas());
+                break;
+
+            case Mandelbrot::VECTOR_AVX:
+                mb->calculate_vector_avx(window->canvas());
+                break;
+
+            case Mandelbrot::I_DEFAULT:
+            default:
+                fprintf(stderr, "Wrong or no mode specified");
+                return Status::ARGS_ERROR;
+        }
 
         window->renew();
 
@@ -223,24 +300,24 @@ Status::Statuses process(sfmlWindow* window) {
 
                         case sf::Keyboard::Scan::NumpadPlus:
                         case sf::Keyboard::Scan::Equal:
-                            mb.scale /= SCALING_STEP;
+                            mb->scale /= SCALING_STEP;
                             break;
                         case sf::Keyboard::Scan::NumpadMinus:
                         case sf::Keyboard::Scan::Hyphen:
-                                mb.scale *= SCALING_STEP;
+                                mb->scale *= SCALING_STEP;
                             break;
 
                         case sf::Keyboard::Scan::Right:
-                            mb.x_offs += MOVE_STEP * mb.scale / DEFAULT_SCALE;
+                            mb->x_offs += MOVE_STEP * mb->scale / DEFAULT_SCALE;
                             break;
                         case sf::Keyboard::Scan::Left:
-                            mb.x_offs -= MOVE_STEP * mb.scale / DEFAULT_SCALE;
+                            mb->x_offs -= MOVE_STEP * mb->scale / DEFAULT_SCALE;
                             break;
                         case sf::Keyboard::Scan::Up:
-                            mb.y_offs -= MOVE_STEP * mb.scale / DEFAULT_SCALE;
+                            mb->y_offs -= MOVE_STEP * mb->scale / DEFAULT_SCALE;
                             break;
                         case sf::Keyboard::Scan::Down:
-                            mb.y_offs += MOVE_STEP * mb.scale / DEFAULT_SCALE;
+                            mb->y_offs += MOVE_STEP * mb->scale / DEFAULT_SCALE;
                             break;
 
                         default:
@@ -255,7 +332,6 @@ Status::Statuses process(sfmlWindow* window) {
 #pragma GCC diagnostic pop
         }
     }
-    */
 
     return Status::NORMAL_WORK;
 }

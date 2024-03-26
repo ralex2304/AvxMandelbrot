@@ -2,19 +2,20 @@
 
 #include "lib_sfml.h"
 
-bool sfmlWindow::ctor(const unsigned int width, const unsigned int height, const char* header) {
+bool sfmlWindow::ctor(const unsigned int width, const unsigned int height, const char* header,
+                      sfmlCanvas* canvas) {
     assert(width > 0);
     assert(height > 0);
     assert(header);
+    assert(canvas);
+
+    _canvas = canvas;
 
     if ((_window = new(std::nothrow) sf::RenderWindow(sf::VideoMode(
                                         (unsigned int)width, (unsigned int)height), header)) == nullptr)
         return false;
 
     _window->setPosition(sf::Vector2i(100, 100));
-
-    if (!_canvas.ctor(width, height))
-        return false;
 
 #ifdef SHOW_FPS
 
@@ -36,9 +37,9 @@ bool sfmlWindow::ctor(const unsigned int width, const unsigned int height, const
 void sfmlWindow::renew() {
     _window->clear();
 
-    _canvas.renew();
+    _canvas->renew();
 
-    _window->draw(_canvas.sprite());
+    _window->draw(_canvas->sprite());
 
 #ifdef SHOW_FPS
     _show_fps();
@@ -48,7 +49,6 @@ void sfmlWindow::renew() {
 }
 
 void sfmlWindow::dtor() {
-    _canvas.dtor();
     delete _window;
 }
 

@@ -36,7 +36,7 @@ inline size_t time_microseconds() {
     struct timeval tv = {};
     gettimeofday(&tv, NULL);
 
-    return tv.tv_sec * (size_t)1000'000 + tv.tv_usec;
+    return (size_t)tv.tv_sec * 1000'000 + (size_t)tv.tv_usec;
 }
 
 #endif // #ifndef MACROS_H_

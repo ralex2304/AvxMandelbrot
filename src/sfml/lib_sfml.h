@@ -34,15 +34,15 @@ struct sfmlCanvas {
         void dtor() { FREE(_pixels); }
 
         inline void set_pixel_color(const int x, const int y, const uint32_t color) {
-            *((uint32_t*)_pixels + y * _width + x) = color;
+            memcpy(_pixels + (size_t)y * _width + (size_t)x, &color, sizeof(uint32_t));
         }
 
         inline void set_pixel_color_by_number(const size_t i, const uint32_t color) {
-            *((uint32_t*)_pixels + i) = color;
+            memcpy(_pixels + i * sizeof(uint32_t), &color, sizeof(uint32_t));
         }
 
         inline void set_pixel_color_raw(const size_t i, const uint32_t color) {
-            *((uint32_t*)(_pixels + i)) = color;
+            memcpy(_pixels + i, &color, sizeof(uint32_t));
         }
 
         void renew() { _texture.update(_pixels); }
@@ -66,27 +66,18 @@ struct sfmlCanvas {
 struct sfmlWindow {
     public:
 
-        bool ctor(const unsigned int window_width, const unsigned int window_height, const char* header);
+        bool ctor(const unsigned int window_width, const unsigned int window_height, const char* header,
+                  sfmlCanvas* canvas);
         void dtor();
-
-        inline void set_pixel_color(const int x, const int y, const uint32_t color) {
-            _canvas.set_pixel_color(x, y, color);
-        }
-
-        inline void set_pixel_color_by_number(const size_t i, const uint32_t color) {
-            _canvas.set_pixel_color_by_number(i, color);
-        }
-
-        inline void set_pixel_color_raw(const size_t i, const uint32_t color) {
-            _canvas.set_pixel_color_raw(i, color);
-        }
 
         void renew();
 
         bool is_closed();
 
-        inline size_t width()  { return _canvas.width(); }
-        inline size_t height() { return _canvas.height(); }
+        inline sfmlCanvas* canvas() { return _canvas; }
+
+        inline size_t width()  { return _canvas->width(); }
+        inline size_t height() { return _canvas->height(); }
 
         inline bool is_open() { return _window->isOpen(); }
 
@@ -99,7 +90,7 @@ struct sfmlWindow {
     private:
         sf::RenderWindow* _window = nullptr;     //< sfml window class
 
-        sfmlCanvas _canvas = {};
+        sfmlCanvas* _canvas = nullptr;
 
 #ifdef SHOW_FPS
         sf::Font _font = {};

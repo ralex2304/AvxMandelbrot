@@ -11,9 +11,22 @@ inline __m256 _mm256_set_ps1(float v) { // REVIEW
     return _mm256_set_ps(v, v, v, v, v, v, v, v);
 }
 
-Status::Statuses process(sfmlWindow* window);
-
 struct Mandelbrot {
+
+    enum IMPL: int {
+        I_DEFAULT     = -1,
+        NAIVE         =  0,
+        VECTOR_NO_AVX =  1,
+        VECTOR_AVX    =  2,
+
+    } impl = I_DEFAULT;
+
+    enum MODE: int {
+        M_DEFAULT = -1,
+        GRAPH     =  0,
+        TEST      =  1,
+
+    } test_mode = M_DEFAULT;
 
     float x_offs = X_DEFAULT_OFFS;
     float y_offs = Y_DEFAULT_OFFS;
@@ -23,14 +36,16 @@ struct Mandelbrot {
 
     float scale = DEFAULT_SCALE;
 
-    inline void calculate_naive(sfmlWindow* window);
+    void calculate_naive(sfmlCanvas* canvas);
 
-    inline void calculate_vector_no_sse(sfmlWindow* window);
+    void calculate_vector_no_avx(sfmlCanvas* canvas);
 
-    inline void calculate_vector_sse(sfmlWindow* window);
+    void calculate_vector_avx(sfmlCanvas* canvas);
 
 };
 
-Status::Statuses measure_ticks(Mandelbrot* mb, sfmlWindow* window);
+Status::Statuses window_process(Mandelbrot* mb, sfmlWindow* window);
+
+Status::Statuses measure_ticks(Mandelbrot* mb, sfmlCanvas* canvas);
 
 #endif //< #ifndef MANDELBROT_H_
