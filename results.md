@@ -1,3 +1,11 @@
+# Список флагов
+
+Кроме этих флагов используются `-O2`, `-O3`
+
+```
+-fdiagnostics-color=always -Wshadow -Winit-self -Wredundant-decls -Wcast-align -Wundef -Wfloat-equal -Winline -Wunreachable-code -Wmissing-declarations -Wmissing-include-dirs -Wswitch-enum -Wswitch-default -Weffc++ -Wmain -Wextra -Wall -g -pipe -fexceptions -Wcast-qual	-Wconversion -Wctor-dtor-privacy -Wempty-body -Wformat-security -Wformat=2 -Wignored-qualifiers -Wlogical-op -Wno-missing-field-initializers -Wnon-virtual-dtor -Woverloaded-virtual -Wpointer-arith -Wsign-promo -Wstack-usage=8192 -Wstrict-aliasing -Wstrict-null-sentinel -Wtype-limits -Wwrite-strings -Werror=vla -D_DEBUG -D_EJUDGE_CLIENT_SIDE -DNDEBUG -march=native
+```
+
 # Результаты измерений
 
 | # | Naive<br>g++ -O2 | Vector<br>g++ -O2 | AVX<br>g++ -O2 | Naive<br>g++ -O3 | Vector<br>g++ -O3 | AVX<br>g++ -O3 | Naive<br>clang++ -O2 | Vector<br>clang++ -O2 | AVX<br>clang++ -O2 | Naive<br>clang++ -O3 | Vector<br>clang++ -O3 | AVX<br>clang++ -O3 | Naive<br>g++ -O3 volatile | Vector<br>g++ -O3 volatile | AVX<br>g++ -O3 volatile |
@@ -23,7 +31,7 @@
 
 # Полная таблица сравнения
 
-Значение в ячейке равно количеству тактов для концигурации по столбцу делённому на количество тактов для концигурации по строке
+Значение в ячейке равно количеству тактов для концигурации по столбцу, делённому на количество тактов для концигурации по строке
 
 | col / row | Naive<br>`g++ -O2` | Vector<br>`g++ -O2` | AVX<br>`g++ -O2` | Naive<br>`g++ -O3` | Vector<br>`g++ -O3` | AVX<br>`g++ -O3` | Naive<br>`clang++ -O2` | Vector<br>`clang++ -O2` | AVX<br>`clang++ -O2` | Naive<br>`clang++ -O3` | Vector<br>`clang++ -O3` | AVX<br>`clang++ -O3` | Naive<br>`g++ -O3 volatile` | Vector<br>`g++ -O3 volatile` | AVX<br>`g++ -O3 volatile` |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|

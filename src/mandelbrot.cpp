@@ -7,11 +7,11 @@ static volatile uint32_t measure_result_global = 0;
 inline uint32_t count_color_rgba_(unsigned int n) {
     n = 255 - n;
 
-    uint32_t res = 0xFFu << 24u; //< A channel
+    uint32_t res = 0xFFu << 24u;    //< A channel
 
-    res += n << 16u;
-    res += ((n % 8u) * 32u) << 8u;
-    res += (n % 2u) * 255u;
+    res += n << 16u;                //< B channel
+    res += ((n % 8u) * 32u) << 8u;  //< G channel
+    res += (n % 2u) * 255u;         //< R channel
 
     return res;
 }
@@ -117,7 +117,7 @@ void Mandelbrot::calculate_vector_avx(sfmlCanvas* canvas) {
 
     size_t n = 0;
 
-    __m256 y0 = _mm256_set_ps1(y_offs * DEFAULT_SCALE - scale * HEIGHT / 2);
+    __m256 y0 = _mm256_set1_ps(y_offs * DEFAULT_SCALE - scale * HEIGHT / 2);
 
     for (size_t iy = 0; iy < canvas->height(); iy++, y0 += scale) {
 
@@ -126,8 +126,8 @@ void Mandelbrot::calculate_vector_avx(sfmlCanvas* canvas) {
         for (size_t jx = 0; jx < canvas->width(); jx += 8, x0_base += 8 * scale) {
 
             // x0[0:7] = x0_base + scale * {0 - 7}
-            __m256 x0 = _mm256_add_ps(_mm256_set_ps1(x0_base),
-                                      _mm256_mul_ps(_mm256_set_ps1(scale),
+            __m256 x0 = _mm256_add_ps(_mm256_set1_ps(x0_base),
+                                      _mm256_mul_ps(_mm256_set1_ps(scale),
                                                     _mm256_set_ps(7, 6, 5, 4, 3, 2, 1, 0)));
 
             __m256 x = x0;
@@ -159,8 +159,7 @@ void Mandelbrot::calculate_vector_avx(sfmlCanvas* canvas) {
             }
 
             alignas(32) int cnts_int[8] = {};
-            _mm256_store_si256((__m256i*)&cnts_int, cnts); // REVIEW
-            //int* cnts_int = (int*)&cnts;
+            _mm256_store_si256((__m256i*)&cnts_int, cnts);
 
             for (int i = 0; i < 8; i++) {
 #ifdef VOLATILE
@@ -174,59 +173,57 @@ void Mandelbrot::calculate_vector_avx(sfmlCanvas* canvas) {
     }
 }
 
+#define RDTSC_MEASURE_(...)                                     \
+                                                                \
+            unsigned long lo = 0;                               \
+            unsigned long hi = 0;                               \
+            asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));      \
+            unsigned long rdtsc_begin = lo + (hi << 32);        \
+                                                                \
+            __VA_ARGS__                                         \
+                                                                \
+            asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));      \
+            unsigned long rdtsc_end = lo + (hi << 32);          \
+
 inline unsigned long measure_ticks_naive_(Mandelbrot* mb, sfmlCanvas* canvas) {
     assert(mb);
     assert(canvas);
 
-    unsigned long lo = 0;
-    unsigned long hi = 0;
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    unsigned long begin = lo + (hi << 32);
+    RDTSC_MEASURE_({
 
-    for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
-        mb->calculate_naive(canvas);
+        for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
+            mb->calculate_naive(canvas);
+    });
 
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    unsigned long end = lo + (hi << 32);
-
-    return (end - begin) / MEASURE_CNT;
+    return (rdtsc_end - rdtsc_begin) / MEASURE_CNT;
 }
 
 inline unsigned long measure_ticks_vector_no_avx_(Mandelbrot* mb, sfmlCanvas* canvas) {
     assert(mb);
     assert(canvas);
 
-    unsigned long lo = 0;
-    unsigned long hi = 0;
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    unsigned long begin = lo + (hi << 32);
+    RDTSC_MEASURE_({
 
-    for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
-        mb->calculate_vector_no_avx(canvas);
+        for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
+            mb->calculate_vector_no_avx(canvas);
+    });
 
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    unsigned long end = lo + (hi << 32);
-
-    return (end - begin) / MEASURE_CNT;
+    return (rdtsc_end - rdtsc_begin) / MEASURE_CNT;
 }
 
 inline unsigned long measure_ticks_vector_avx_(Mandelbrot* mb, sfmlCanvas* canvas) {
     assert(mb);
     assert(canvas);
+//+
+    RDTSC_MEASURE_({
 
-    unsigned long lo = 0;
-    unsigned long hi = 0;
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    unsigned long begin = lo + (hi << 32);
+        for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
+            mb->calculate_vector_avx(canvas);
+    });
 
-    for (size_t cnt = 0; cnt < MEASURE_CNT; cnt++)
-        mb->calculate_vector_avx(canvas);
-
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    unsigned long end = lo + (hi << 32);
-
-    return (end - begin) / MEASURE_CNT;
+    return (rdtsc_end - rdtsc_begin) / MEASURE_CNT;
 }
+#undef RDTSC_MEASURE_
 
 Status::Statuses measure_ticks(Mandelbrot* mb, sfmlCanvas* canvas) {
     assert(mb);

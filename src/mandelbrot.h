@@ -7,10 +7,6 @@
 #include "utils/statuses.h"
 #include "sfml/lib_sfml.h"
 
-inline __m256 _mm256_set_ps1(float v) { // REVIEW
-    return _mm256_set_ps(v, v, v, v, v, v, v, v);
-}
-
 struct Mandelbrot {
 
     enum IMPL: int {
@@ -32,7 +28,7 @@ struct Mandelbrot {
     float y_offs = Y_DEFAULT_OFFS;
 
     const float R2 = RADIUS * RADIUS;
-    const __m256 R2_vect = _mm256_set_ps1(R2);
+    const __m256 R2_vect = _mm256_set1_ps(R2);
 
     float scale = DEFAULT_SCALE;
 
